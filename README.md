@@ -4,6 +4,8 @@
 
 **gojs**  is a JavaScript library for visualizing data using web standards. 
 </br>
+
+
 ## Resources
 </br>
 * [API Reference](https://gojs.net/latest/api/index.html)
@@ -12,6 +14,9 @@
 </br>
 -------------------------------------------graph are made in gojs.js----------------------------------------
 </br>
+
+
+
 ## Example
 1.company.html
 <img src="https://github.com/azcvcza/gojs-Sample/blob/master/img/company.png"  hspace="10" vspace="6">
@@ -41,7 +46,7 @@
    </br>
    server your own ,or you will meet cross require problom.
    </br>
------------------------------------------------------------------------------------------------------------
+
 
 
 
