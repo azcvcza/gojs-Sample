@@ -11,11 +11,16 @@
 
 -------------------------------------------graph are made in d3.v4----------------------------------------
 ## Example
-1.relation
-![barchart picture](https://github.com/azcvcza/d3js/tree/master/picture/barchart.png) 
+1.company.html
+<img src="https://github.com/azcvcza/gojs-Sample/blob/master/gojs.png" align="left" hspace="10" vspace="6">
+2.enterprise.html
+<img src="https://github.com/azcvcza/gojs-Sample/blob/master/gojs.png" align="left" hspace="10" vspace="6">
+3.swimlane.html
+<img src="https://github.com/azcvcza/gojs-Sample/blob/master/gojs.png" align="left" hspace="10" vspace="6">
+4.personnal.html
+<img src="https://github.com/azcvcza/gojs-Sample/blob/master/gojs.png" align="left" hspace="10" vspace="6">
+
 
 
 ## DownLoad
-1.company.html
-2.personal.html
-3.
+
