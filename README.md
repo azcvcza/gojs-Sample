@@ -1,6 +1,6 @@
 # GOJS-SAMPLE
 
-<a href="https://gojs.net/latest/index.html"><img src="" align="left" hspace="10" vspace="6"></a>
+<a href="https://gojs.net/latest/index.html"><img src="https://github.com/azcvcza/gojs-Sample/blob/master/gojs.png" align="left" hspace="10" vspace="6"></a>
 
 **gojs**  is a JavaScript library for visualizing data using web standards. 
 
