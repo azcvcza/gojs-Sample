@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title></title>
+<meta name="description" content="Interactive diagram showing all distances from a node, and highlighting all paths between two nodes." />
+
+<meta charset="UTF-8">
+<script src="go.js"></script>
+<!-- this is only for the GoJS Samples framework -->
+<script id="code">
+  function init() {
+    if (window.goSamples) goSamples();  // init for these samples -- you don't need to call this
+    var $ = go.GraphObject.make;  // for conciseness in defining templates
+
+    var yellowgrad = $(go.Brush, "Linear", { 0: "rgb(254, 201, 0)", 1: "rgb(254, 162, 0)" });
+    var greengrad = $(go.Brush, "Linear", { 0: "#98FB98", 1: "#9ACD32" });
+    var bluegrad = $(go.Brush, "Linear", { 0: "#B0E0E6", 1: "#87CEEB" });
+    var redgrad = $(go.Brush, "Linear", { 0: "#C45245", 1: "#871E1B" });
+    var whitegrad = $(go.Brush, "Linear", { 0: "#F0F8FF", 1: "#E6E6FA" });
+
+    var bigfont = "bold 13pt Helvetica, Arial, sans-serif stroke:white";
+    var smallfont = "bold 11pt Helvetica, Arial, sans-serif ";
+
+    // Common text styling
+    function textStyle() {
+      return {
+        margin: 6,
+        wrap: go.TextBlock.WrapFit,
+        textAlign: "center",
+        editable: true,
+        font: bigfont
+      }
+    }
+
+    myDiagram =
+      $(go.Diagram, "myDiagramDiv",
+        {
+          // have mouse wheel events zoom in and out instead of scroll up and down
+          "toolManager.mouseWheelBehavior": go.ToolManager.WheelZoom,
+          allowDrop: true,  // support drag-and-drop from the Palette
+          initialAutoScale: go.Diagram.Uniform,
+          "linkingTool.direction": go.LinkingTool.ForwardsOnly,
+          initialContentAlignment: go.Spot.Center,
+          //取消了自动调节，不然修改后的结构无法实现
+          //layout: $(go.LayeredDigraphLayout, { isInitial: false, isOngoing: false, layerSpacing: 50 }),
+          "undoManager.isEnabled": true
+        });
+
+    // when the document is modified, add a "*" to the title and enable the "Save" button
+    myDiagram.addDiagramListener("Modified", function(e) {
+      var button = document.getElementById("SaveButton");
+      if (button) button.disabled = !myDiagram.isModified;
+      var idx = document.title.indexOf("*");
+      if (myDiagram.isModified) {
+        if (idx < 0) document.title += "*";
+      } else {
+        if (idx >= 0) document.title = document.title.substr(0, idx);
+      }
+    });
+    myDiagram.groupTemplate =
+    $(go.Group, "Vertical",
+      $(go.Panel, "Auto",
+        $(go.Shape, "RoundedRectangle",  // surrounds the Placeholder
+          { parameter1: 14,
+            fill: "transparent",stroke:"black",margin:2 }),
+        $(go.Placeholder,    // represents the area of all member parts,
+          { padding: 5})  // with some extra padding around them
+      )
+    );
+
+    var defaultAdornment =
+      $(go.Adornment, "Spot",
+        $(go.Panel, "Auto",
+          $(go.Shape,"Circle", { fill: null, stroke: "transparent", strokeWidth: 4 }),
+          $(go.Placeholder))
+        // the button to create a "next" node, at the top-right corner
+      );
+
+    // define the Node template
+    myDiagram.nodeTemplate =
+      $(go.Node, "Auto",
+        { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        // define the node's outer shape, which will surround the TextBlock
+        $(go.Shape, "Circle",
+          { fill: yellowgrad, stroke: "black",
+            portId: "", fromLinkable: true, toLinkable: true, cursor: "pointer",
+            toEndSegmentLength: 50, fromEndSegmentLength: 40 }),
+        $(go.TextBlock, "企业",
+          { margin: 6,
+            font:"30pt Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay()));
+    //the original of the picture just can from,but never can be reached
+    myDiagram.nodeTemplateMap.add("Source",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "Circle",
+          { fill: "red",
+          portId: "", fromLinkable: true, cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "上游企业", { margin: 6,
+            font:"30pt Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+    //直接与间接企业
+    myDiagram.nodeTemplateMap.add("Relative",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+           {   fromSpot:go.Spot.Left },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "Circle",
+          { fill: "#f05050",
+          portId: "",  fromLinkable: true, toLinkable: true, cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "直接关联企业", { margin: 3,
+            font:"30pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+
+       myDiagram.nodeTemplateMap.add("RelativeNode",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "rectangle",
+          { fill: "transparent",
+            stroke:"transparent",
+          portId: "",  fromLinkable: true, toLinkable: true, cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "editable", { margin:1,
+            font:"28pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"#f05050",
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+         myDiagram.nodeTemplateMap.add("BigBlock",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+          {   toSpot: go.Spot.LeftSide },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+
+        $(go.Shape, "rectangle",
+          { fill: "transparent",stroke:"white",
+          portId: "",  fromLinkable: true, toLinkable: true, cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "editable", { margin:1,
+            font:"30pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+    //蓝色节点
+    myDiagram.nodeTemplateMap.add("BlueNode",
+        $(go.Node, "Auto",
+        { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        // define the node's outer shape, which will surround the TextBlock
+        $(go.Shape, "Circle",
+          { fill: "#42ced2", stroke: "black",
+            portId: "", fromLinkable: true, toLinkable: true, cursor: "pointer",
+            toEndSegmentLength: 50, fromEndSegmentLength: 40 }),
+        $(go.TextBlock, "蓝色节点",
+          { margin: 3,
+            font:"25pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())));
+
+      myDiagram.nodeTemplateMap.add("RelativeBlueNode",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+         {movable:"false"},
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "rectangle",
+          { fill: "transparent",
+            stroke:"transparent",
+          portId: "",  cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "editable", { margin:1,
+            font:"28pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"#42ced2",
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+    //greennode
+    myDiagram.nodeTemplateMap.add("GreenNode",
+        $(go.Node, "Auto",
+        { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        // define the node's outer shape, which will surround the TextBlock
+        $(go.Shape, "Circle",
+          { fill: "#5aaff2 ", stroke: "black",
+            portId: "", fromLinkable: true, toLinkable: true, cursor: "pointer",
+            toEndSegmentLength: 50, fromEndSegmentLength: 40 }),
+        $(go.TextBlock, "绿色节点",
+          { margin: 3,
+            font:"25pt Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())));
+
+    myDiagram.nodeTemplateMap.add("RelativeGreenNode",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+         {movable:"false"},
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "rectangle",
+          { fill: "transparent",
+            stroke:"transparent",
+          portId: "",   cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "editable", { margin:1,
+            font:"28pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"#5aaff2",
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+
+    //pinknode
+     myDiagram.nodeTemplateMap.add("PinkNode",
+        $(go.Node, "Auto",
+        { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        // define the node's outer shape, which will surround the TextBlock
+        $(go.Shape, "Circle",
+          { fill: "#f05050 ", stroke: "black",
+            portId: "", fromLinkable: true, toLinkable: true, cursor: "pointer",
+            toEndSegmentLength: 50, fromEndSegmentLength: 40 }),
+        $(go.TextBlock, "粉色节点",
+          { margin: 3,
+            font:"25pt Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())));
+     myDiagram.nodeTemplateMap.add("RelativePinkNode",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+         {movable:"false"},
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "rectangle",
+          { fill: "transparent",
+            stroke:"transparent",
+          portId: "",   cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "editable", { margin:1,
+            font:"28pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"#f05050",
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+
+     //yellownode
+      myDiagram.nodeTemplateMap.add("YellowNode",
+        $(go.Node, "Auto",
+        { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        // define the node's outer shape, which will surround the TextBlock
+        $(go.Shape, "Circle",
+          { fill: "#fd8a03 ", stroke: "black",
+            portId: "", fromLinkable: true, toLinkable: true, cursor: "pointer",
+            toEndSegmentLength: 50, fromEndSegmentLength: 40 }),
+        $(go.TextBlock, "黄色节点",
+          { margin: 3,
+            font:"25pt Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"white",
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        )
+        );
+       myDiagram.nodeTemplateMap.add("RelativeYellowNode",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+         {movable:"false"},
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "rectangle",
+          { fill: "transparent",
+          stroke:"transparent",
+          portId: "",  cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "editable", {
+          margin:1,
+            font:"28pt  Microsoft YaHei, Arial, sans-serif,bold" ,
+            stroke:"#fd8a03",
+
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+
+      ////////////////////////////////////////////////////////////////
+
+
+
+    // clicking the button on an UndesiredEvent node inserts a new text object into the panel
+    function addReason(e, obj) {
+      var adorn = obj.part;
+      if (adorn === null) return;
+      e.handled = true;
+      var arr = adorn.adornedPart.data.reasonsList;
+      myDiagram.startTransaction("add reason");
+      myDiagram.model.addArrayItem(arr, {});
+      myDiagram.commitTransaction("add reason");
+    }
+
+    // clicking the button of a default node inserts a new node to the right of the selected node,
+    // and adds a link to that new node
+    function addNodeAndLink(e, obj) {
+      var adorn = obj.part;
+      if (adorn === null) return;
+      e.handled = true;
+      var diagram = adorn.diagram;
+      diagram.startTransaction("Add State");
+      // get the node data for which the user clicked the button
+      var fromNode = adorn.adornedPart;
+      var fromData = fromNode.data;
+      // create a new "State" data object, positioned off to the right of the adorned Node
+      var toData = { text: "new" };
+      var p = fromNode.location;
+      toData.loc = p.x + 200 + " " + p.y;  // the "loc" property is a string, not a Point object
+      // add the new node data to the model
+      var model = diagram.model;
+      model.addNodeData(toData);
+      // create a link data from the old node data to the new node data
+      var linkdata = {};
+      linkdata[model.linkFromKeyProperty] = model.getKeyForNodeData(fromData);
+      linkdata[model.linkToKeyProperty] = model.getKeyForNodeData(toData);
+      // and add the link data to the model
+      model.addLinkData(linkdata);
+      // select the new Node
+      var newnode = diagram.findNodeForData(toData);
+      diagram.select(newnode);
+      diagram.commitTransaction("Add State");
+    }
+
+    // replace the default Link template in the linkTemplateMap
+    myDiagram.linkTemplate =
+
+  $(go.Link,
+    { curve: go.Link.Bezier ,
+      corner:10
+    },
+      $(go.Shape,{stroke:"#f05050",fill:"#f05050",strokeWidth:4}),
+      $(go.Shape, {stroke:"#f05050",fill:"#f05050",toArrow: "Standard",scale:2}),
+      $(go.TextBlock, {
+        stroke:"red",
+        font:"25pt Microsoft YaHei, Arial, sans-serif",editable:true},
+        {segmentOffset: new go.Point(0, 20) },
+        new go.Binding("text", "text").makeTwoWay()
+        )
+
+      );
+/*
+    myDiagram.nodeTemplateMap.add("RelativeYellowNode",
+      $(go.Node, "Auto",
+         { selectionAdornmentTemplate: defaultAdornment },
+        new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+        $(go.Shape, "rectangle",
+          { fill: "transparent",
+          stroke:"white",
+          portId: "",  fromLinkable: true, toLinkable: true, cursor: "pointer", fromEndSegmentLength: 40}),
+        $(go.TextBlock, "editable", {
+          margin:1,
+            font:"25pt Microsoft YaHei, Arial, sans-serif" ,
+            stroke:"#fd8a03",
+
+
+            editable: true },
+          new go.Binding("text", "text").makeTwoWay())
+        ));
+*/
+    myDiagram.linkTemplateMap.add("BlueLink",
+        $(go.Link,
+      $(go.Shape,{stroke:"#42ced2",fill:"#42ced2",strokeWidth:4}),
+      $(go.Shape, {stroke:"#42ced2",fill:"#42ced2",toArrow: "Standard",scale:2}),
+      $(go.TextBlock, {
+        stroke:"#42ced2",
+        font:"30pt Microsoft YaHei, Arial, sans-serif",editable:true},
+        {segmentOffset: new go.Point(0,40) },
+        new go.Binding("text", "text").makeTwoWay()
+        )
+
+      ));
+    myDiagram.linkTemplateMap.add("RedLink",
+        $(go.Link,
+           { routing: go.Link.AvoidsNodes ,
+             corner:10},
+      $(go.Shape,{stroke:"red",fill:"red",strokeWidth:4}),
+      $(go.Shape, {stroke:"red",fill:"red",toArrow: "Standard",scale:2}),
+      $(go.TextBlock, {
+        stroke:"red",
+        font:"35pt Microsoft YaHei, Arial, sans-serif ",editable:true},
+        {segmentOffset: new go.Point(0, -40) },
+        new go.Binding("text", "text").makeTwoWay()
+        )
+
+      ));
+    myDiagram.linkTemplateMap.add("RBlueLink",
+        $(go.Link,
+      $(go.Shape,{stroke:"#42ced2",fill:"#42ced2",strokeWidth:4}),
+      $(go.Shape, {stroke:"#42ced2",fill:"#42ced2",toArrow: "Line",scale:15,strokeWidth:0.5})
+
+      ));
+    myDiagram.linkTemplateMap.add("RGreenLink",
+        $(go.Link,
+      $(go.Shape,{stroke:"#5aaff2",fill:"#5aaff2",strokeWidth:4}),
+      $(go.Shape, {stroke:"#5aaff2",fill:"#5aaff2",toArrow: "Line",scale:15,strokeWidth:0.5})
+
+      ));
+    myDiagram.linkTemplateMap.add("RYellowLink",
+        $(go.Link,
+      $(go.Shape,{stroke:"#fd8a03",fill:"#fd8a03",strokeWidth:4}),
+      $(go.Shape, {stroke:"#fd8a03",fill:"#fd8a03",toArrow: "Line",scale:20,strokeWidth:0.5})
+
+      ));
+    myDiagram.linkTemplateMap.add("RPinkLink",
+        $(go.Link,
+      $(go.Shape,{stroke:"#f05050",fill:"#f05050",strokeWidth:4}),
+      $(go.Shape, {stroke:"#f05050",fill:"#f05050",toArrow: "Line",scale:15,strokeWidth:0.5})
+
+      ));
+      myDiagram.linkTemplateMap.add("RSPinkLink",
+        $(go.Link,
+           { routing: go.Link.AvoidsNodes ,
+             corner:10},
+      $(go.Shape,{stroke:"#f05050",fill:"#f05050",strokeWidth:4}),
+      $(go.Shape, {stroke:"#f05050",fill:"#f05050",toArrow: "Line",scale:15,strokeWidth:0.5})
+
+      ));
+
+     myDiagram.linkTemplateMap.add("PinkLink",
+        $(go.Link,
+      $(go.Shape,{stroke:"#f05050 ",fill:"#42ced2",strokeWidth:4}),
+      $(go.Shape, {stroke:"#f05050 ",fill:"#42ced2",toArrow: "Standard",scale:2}),
+      $(go.TextBlock, {
+        stroke:"#f05050 ",
+        font:"25pt Microsoft YaHei, Arial, sans-serif",editable:true},
+        {segmentOffset: new go.Point(0, 20) },
+        new go.Binding("text", "text").makeTwoWay()
+        )
+
+      ));
+
+   /*
+   $(go.Link,  // the whole link panel
+        new go.Binding("points").makeTwoWay(),
+        { curve: go.Link.Standdard, toShortLength: 15 },
+        //new go.Binding("curviness", "curviness"),
+        //$(go.Shape),
+
+        $(go.Shape,  // the link shape
+          { stroke: "#f05050", strokeWidth: 4 }),
+
+        $(go.Shape,  // the arrowhead
+          { toArrow: "standard", fill: "#f05050", stroke: "white", scale: 4 }),
+        $(go.TextBlock,"text",{segmentOffset:new Point(0,-10)})
+        //
+
+   */
+
+    /*调试工具
+    var palette =
+      $(go.Palette, "palette",  // create a new Palette in the HTML DIV element "palette"
+        {
+          // share the template map with the Palette
+          nodeTemplateMap: myDiagram.nodeTemplateMap,
+          autoScale: go.Diagram.Uniform  // everything always fits in viewport
+        });
+
+    palette.model.nodeDataArray = [
+      { category: "Source" },
+      { }, // default node
+
+      {category:"RelativeNode"},
+      {category:"BigBlock"},
+      {category:"RelativeGreenNode"},
+      {category:"RelativeBlueNode"},
+      {category:"RelativePinkNode"},
+      {category:"RelativeYellowNode"},
+
+    ];
+      <span style="display: inline-block; vertical-align: top; padding: 5px; width:100px">
+      <div id="palette" style="border: solid 1px black; height: 480px"></div>
+    </span>
+    */
+
+    // read in the JSON-format data from the "mySavedModel" element
+    load();
+    layout();
+  }
+
+  function layout() {
+    myDiagram.layoutDiagram(true);
+  }
+
+  // Show the diagram's model in JSON format
+  function save() {
+    document.getElementById("mySavedModel").value = myDiagram.model.toJson();
+    myDiagram.isModified = true;
+  }
+  function load() {
+    myDiagram.model = go.Model.fromJson(document.getElementById("mySavedModel").value);
+  }
+
+</script>
+</head>
+<body onload="init()">
+<div id="sample">
+
+  <div id="myDiagramDiv" style="background: white; width: 100%; height: 700px"></div>
+
+
+ <!-- <button id="SaveButton"  hidden onclick="save()">Save</button>
+  <button onclick="load() =" hidden >Load</button>
+  <button onclick="layout()" hidden>Layout</button> -->
+  <textarea id="mySavedModel"    hidden style="width:100%;height:300px">
+{
+ "nodeDataArray": [
+{"category":"Source", "key":-1, "loc":"-159.95307655038755 239.0472868217057"},
+{"category":"Relative", "key":-12, "loc":"-334.0620493149696 636.1255446631191", "text":"直接关联公司"},
+{"category":"Relative", "key":-14, "loc":"-1015.0567674514958 634.2656454972104", "text":"间接关联公司"},
+{"category":"BlueNode", "key":-15, "loc":"779.2658279395688 -96.36913379681947", "text":"企业法人"},
+{"category":"BlueNode", "key":-4, "loc":"786.4217282520159 104.06108935951707", "text":"企业高管"},
+{"category":"BlueNode", "key":-16, "loc":"789.8981717686794 292.8185990434949", "text":"企业股东             "},
+{"category":"PinkNode", "key":-17, "loc":"789.8981717686784 476.0275597810156", "text":"基本信息"},
+{"category":"GreenNode", "key":-5, "loc":"794.7885376795228 665.6539374651558", "text":"企业动态"},
+{"category":"Relative", "key":-3, "loc":"205.22635658914737 610.0674115794574", "text":"\n\n企业\n\n\n"},
+{"category":"BlueNode", "key":-13, "loc":"320.6661821705427 -93.3985875878838", "text":"法人投资"},
+{"category":"YellowNode", "key":-7, "loc":"783.1905083304312 872.3759970211058", "text":"诉讼信息"},
+{"category":"YellowNode", "key":-18, "loc":"788.7311976739958 1053.693515651918", "text":"行政处罚"},
+{"category":"YellowNode", "key":-19, "loc":"792.0301320788209 1246.4942216584575", "text":"经营异常"},
+{"category":"RelativeNode", "key":-8, "loc":"-34.08592677048134 979.1631042825225", "text":"企业法人", "group":-27},
+{"category":"RelativeNode", "key":-20, "loc":"-37.258828186050984 1026.031357681251", "text":"企业高管", "group":-27},
+{"category":"RelativeNode", "key":-21, "loc":"-31.000250593262958 1082.764220005045", "text":"基本信息", "group":-27},
+{"category":"RelativeNode", "key":-22, "loc":"-30.91302535491169 1126.763362184912", "text":"企业动态", "group":-27},
+{"category":"RelativeNode", "key":-23, "loc":"-34.08592677048088 1180.193983373134", "text":"诉讼信息", "group":-27},
+{"category":"RelativeNode", "key":-24, "loc":"-34.08592677048088 1227.4953666885726", "text":"行政处罚", "group":-27},
+{"category":"RelativeNode", "key":-25, "loc":"-30.91302535491169 1271.6238485884403", "text":"经营异常", "group":-27},
+{"category":"RelativeNode", "key":-26, "loc":"-34.0859267704811 1322.098133319448", "text":"股东信息", "group":-27},
+{"category":"RelativeBlueNode", "key":-6, "loc":"1074.338661101985 -51.68507596840207", "text":"法人变更", "group":-29},
+{"category":"RelativeBlueNode", "key":-28, "loc":"1080.5972386947724 16.548700883800265", "text":"法人离婚", "group":-29},
+{"category":"RelativeBlueNode", "key":-30, "loc":"1077.3371120408501 142.3636222429284", "text":"高管离职", "group":-32},
+{"category":"RelativeBlueNode", "key":-31, "loc":"1077.3371120408501 204.07714578728897", "text":"高管变更", "group":-32},
+{"category":"RelativeBlueNode", "key":-33, "loc":"1086.9430415259094 329.9792923847685", "text":"股权变更", "group":-43},
+{"category":"RelativeBlueNode", "key":-34, "loc":"1080.510013456419 398.21306923697097", "text":"人员变更", "group":-43},
+{"category":"RelativeNode", "key":-35, "loc":"1071.2529849247646 510.4313397153883", "text":"企业停业", "group":-44},
+{"category":"RelativeNode", "key":-36, "loc":"1074.3386611019837 556.7164823736591", "text":"企业对外投资", "group":-44},
+{"category":"RelativeNode", "key":-37, "loc":"1071.252984924765 596.8302726774934", "text":"注册信息变更", "group":-44},
+{"category":"RelativeGreenNode", "key":-38, "loc":"1074.2514358636322 645.6777400828736", "text":"质量纠纷", "group":-45},
+{"category":"RelativeGreenNode", "key":-39, "loc":"1071.1657596864134 698.1342350955797", "text":"法人跑路", "group":-45},
+{"category":"RelativeGreenNode", "key":-40, "loc":"1071.1657596864147 747.5050539310683", "text":"债务纠纷", "group":-45},
+{"category":"RelativeGreenNode", "key":-41, "loc":"1071.1657596864134 787.6188442349027", "text":"知识产权纠纷", "group":-45},
+{"category":"RelativeGreenNode", "key":-42, "loc":"1071.1657596864138 840.075339247609", "text":"其他负面消息", "group":-45},
+{"category":"RelativeYellowNode", "key":-46, "loc":"1074.425886340335 895.791960914237", "text":"入失信被执行人名单", "group":-54},
+{"category":"RelativeYellowNode", "key":-47, "loc":"1074.4258863403354 954.4198082813792", "text":"入被执行人名单", "group":-54},
+{"category":"RelativeYellowNode", "key":-48, "loc":"1077.5115625175536 1006.8763032940859", "text":"企业投诉信息", "group":-54},
+{"category":"RelativeYellowNode", "key":-49, "loc":"1074.3386611019837 1102.619490026197", "text":"工商处罚", "group":-55},
+{"category":"RelativeYellowNode", "key":-50, "loc":"1074.3386611019837 1167.4186897477744", "text":"其他行政处罚", "group":-55},
+{"category":"RelativeYellowNode", "key":-51, "loc":"1067.7311825557906 1266.1603274187519", "text":"未提交年报", "group":-56},
+{"category":"RelativeYellowNode", "key":-52, "loc":"1070.8168587330085 1324.7881747858949", "text":"未年检", "group":-56},
+{"category":"RelativeYellowNode", "key":-53, "loc":"1073.9025349102276 1380.3303459758185", "text":"其他经营异常", "group":-56},
+{"category":"BigBlock", "key":-29, "loc":"1012.1017861275143 -54.77075214562008", "text":"", "isGroup":"true"},
+{"category":"BigBlock", "key":-27, "loc":"-154.28380886090167 941.9026530958045", "isGroup":"true"},
+{"category":"BigBlock", "key":-32, "loc":"1030.6158431908236 151.96955172798806", "text":"", "isGroup":"true"},
+{"category":"BigBlock", "key":-43, "loc":"1009.0161099502968 324.7674176521979", "isGroup":"true"},
+{"category":"BigBlock", "key":-44, "loc":"999.7590814186426 503.7366359308438", "isGroup":"true"},
+{"category":"BigBlock", "key":-45, "loc":"987.41637670977 701.2199112727978", "isGroup":"true"},
+{"category":"BigBlock", "key":-54, "loc":"1015.1874623047327 892.5318342603159", "isGroup":"true"},
+{"category":"BigBlock", "key":-55, "loc":"971.98799582368 1096.1864619567061", "isGroup":"true"},
+{"category":"BigBlock", "key":-56, "loc":"987.4163767097705 1256.6416231720436", "isGroup":"true"}
+ ],
+  "linkDataArray": [
+{"from":-15, "to":-13, "points":[684.3561623000494,92.89920017440028,495.7419909552849,109.62397228792513], "text":"投资", "category":"BlueLink"},
+{"from":-1, "to":-3, "points":[53.5848045285189,453.9876663777893,243.12234606200016,646.544659425902], "text":"融资", "category":"RedLink"},
+{"from":-3, "to":-12, "points":[232.90693428968387,816.1541888800432,102.06423819093652,920.4526606839103], "text":"投资", "category":"PinkLink"},
+{"from":-12, "to":-14, "points":[-121.88966026279137,1023.4991153481475,-340.66617791550283,1065.4593148844106], "text":"投资", "category":"PinkLink"},
+{"from":-3, "to":-15, "points":[438.0485490354655,632.4489887182506,726.0648843880587,160.0407550193634]},
+{"from":-3, "to":-4, "points":[463.0259937625946,651.4429664153644,784.385535268231,308.4185491843424]},
+{"from":-3, "to":-16, "points":[485.06428244479014,677.2405748571689,789.1532509087385,471.00624875230204]},
+{"from":-3, "to":-17, "points":[504.41563486923735,717.2786384450064,778.0682530854085,631.2802828765897]},
+{"from":-3, "to":-5, "points":[511.35628736172623,768.7888051655957,782.1557198535871,778.7085856112853]},
+{"from":-3, "to":-7, "points":[501.2750588314458,818.0919534354343,789.024106829281,928.6323052552247]},
+{"from":-3, "to":-18, "points":[482.6151736331271,852.631615284841,808.3393783381348,1087.0788599407392]},
+{"from":-3, "to":-19, "points":[462.12023063663065,875.7661302071419,811.0356866354382,1254.284761750336]},
+{"from":-12, "to":-27, "category":"RSPinkLink", "point":"-154.28380886090167 941.9026530958045 100 0"},
+{"from":-15, "to":-29, "category":"RBlueLink", "des":"first node to comment,blue link"},
+{"from":-4, "to":-32, "category":"RBlueLink"},
+{"from":-16, "to":-43, "category":"RBlueLink"},
+{"from":-17, "to":-44, "category":"RPinkLink"},
+{"from":-5, "to":-45, "category":"RGreenLink"},
+{"from":-7, "to":-54, "category":"RYellowLink"},
+{"from":-18, "to":-55, "category":"RYellowLink"},
+{"from":-19, "to":-56, "category":"RYellowLink"}
+ ]
+}
+</textarea></div>
+</body>
+</html>
